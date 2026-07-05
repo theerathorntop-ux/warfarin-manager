@@ -1,0 +1,48 @@
+/* Mahachai 2 Hospital edition — brand overrides layered on top of ../../css/styles.css.
+   Core layout/logic is untouched; this file only repaints brand colors and
+   adds the header/logo block. Colors sampled from the hospital's official logo. */
+:root {
+    --brand-ink: #14335c;
+    --brand-ink-dark: #0c2140;
+    --brand-accent: #2a97a3;
+    --brand-accent-dark: #1d6f79;
+    --brand-accent-focus-ring: rgba(42,151,163,0.2);
+    --brand-accent-shadow: rgba(42,151,163,0.15);
+    --brand-red: #e2231a;
+}
+
+.container { border-top: 6px solid var(--brand-red); }
+
+.hospital-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 18px;
+    border-bottom: 2px solid #e0e7ef;
+}
+.hospital-logo { height: 56px; width: auto; flex-shrink: 0; }
+.hospital-heading { text-align: left; flex: 1; }
+.hospital-heading h1 {
+    margin: 0; text-align: left; font-size: 20px; color: var(--brand-ink);
+}
+.hospital-heading .hospital-heading-sub {
+    font-weight: normal; color: #7f8c8d; font-size: 15px;
+}
+.hospital-heading .hospital-name {
+    margin-top: 3px; font-size: 14px; font-weight: 600; color: var(--brand-red);
+}
+
+.hospital-footer-line {
+    margin-top: 8px; font-weight: 600; color: var(--brand-ink);
+}
+
+@media print {
+    .hospital-header { border-bottom-color: #ccc; }
+}
+
+@media (max-width: 480px) {
+    .hospital-header { gap: 12px; }
+    .hospital-logo { height: 44px; }
+    .hospital-heading h1 { font-size: 17px; }
+}
