@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warfarin Manager — โรงพยาบาลมหาชัย 2 (Mahachai 2 Hospital)</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="css/hospital.css">
+    <link rel="icon" href="img/mh2-logo.png">
+</head>
+<body>
+    <!--
+        Hospital-branded edition (Mahachai 2 Hospital).
+        Shares the same core JS logic (../js/*.js) and base layout (../css/styles.css)
+        as the generic Warfarin Manager — only the branding shell (header/logo/colors/
+        footer) below and mahachai2/css/hospital.css are specific to this edition.
+        See ../README.md for version history of the shared core.
+    -->
+    <div class="container">
+        <header class="hospital-header">
+            <img src="img/mh2-logo.png" alt="Mahachai 2 Hospital logo" class="hospital-logo">
+            <div class="hospital-heading">
+                <h1>💊 Warfarin Manager <span class="hospital-heading-sub">(Clinical Pro)</span></h1>
+                <div class="hospital-name">โรงพยาบาลมหาชัย 2 · Mahachai 2 Hospital</div>
+            </div>
+        </header>
+
+        <!-- Indication (shared across tabs) -->
+        <div class="form-group">
+            <label for="indicationSelect">Indication <span class="optional-label">(Optional — auto-suggests INR target range below)</span></label>
+            <select id="indicationSelect">
+                <option value="">-- ไม่ระบุ --</option>
+                <option value="af">Atrial Fibrillation (non-valvular)</option>
+                <option value="vte">VTE (DVT/PE)</option>
+                <option value="valve_aortic">Mechanical Valve - Aortic</option>
+                <option value="valve_mitral">Mechanical Valve - Mitral</option>
+                <option value="aps">Antiphospholipid Syndrome (APS)</option>
+            </select>
+            <div id="indicationNote" class="calc-note" style="margin-top:6px;"></div>
+        </div>
+
+        <!-- Drug & Diet Interaction Checklist -->
+        <div class="drug-alert">
+            <strong>⚠️ Drug/Diet Interaction Checklist:</strong> เลือกรายการที่คนไข้ได้รับ/บริโภคร่วมด้วย
+            <div id="interactionChecklist" style="margin-top:10px;"></div>
+            <div id="interactionAdvisory" class="interaction-advisory"></div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="tabs" role="tablist">
+            <button class="tab-button active" role="tab" aria-selected="true" aria-controls="opdTab" tabindex="0" onclick="switchTab('opd')">OPD (Dose Adjustment)</button>
+            <button class="tab-button" role="tab" aria-selected="false" aria-controls="ipdTab" tabindex="-1" onclick="switchTab('ipd')">IPD (Initiation &amp; Bridging)</button>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 1: OPD (Maintenance / Dose Adjustment) -->
+        <!-- ========================================== -->
+        <div id="opdTab" class="tab-content active" role="tabpanel">
+            <div class="clinical-checklist">
+                <strong>🔍 Checklist ก่อนปรับยา:</strong>
+                <ul>
+                    <li>Adherence (กินยาผิด/ขาดยาหรือไม่)</li>
+                    <li>อาหาร (วิตามินเคสูง) / แอลกอฮอล์ / ภาวะเจ็บป่วยติดเชื้อ</li>
+                    <li>อาการเลือดออก (Bleeding symptoms)</li>
+                </ul>
+            </div>
+
+            <div class="form-group">
+                <label for="currentDose">Current weekly dose (mg/wk)</label>
+                <input type="number" id="currentDose" min="1" max="105" step="0.1" value="21" aria-describedby="currentDoseError">
+                <span id="currentDoseError" class="field-error" role="alert"></span>
+            </div>
+
+            <div style="display: flex; gap: 15px;">
+                <div class="form-group" style="flex: 1;">
+                    <label for="currentINR">Current INR</label>
+                    <input type="number" id="currentINR" min="0.5" max="20" step="0.1" value="4.2" aria-describedby="currentINRError">
+                    <span id="currentINRError" class="field-error" role="alert"></span>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label for="prevInrOpd">Previous INR <span class="optional-label">(Optional)</span></label>
+                    <input type="number" id="prevInrOpd" min="0.5" max="20" step="0.1" placeholder="เช็ค Trend">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="targetRange">INR Target Range</label>
+                <select id="targetRange">
+                    <option value="2-3" selected>2 - 3 (มาตรฐานทั่วไป, Aortic Mech Valve)</option>
+                    <option value="2.5-3.5">2.5 - 3.5 (Mitral Mech Valve, APS บางกรณี)</option>
+                </select>
+            </div>
+
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="wasStable">
+                <label for="wasStable">คนไข้มีค่า INR คงที่ (Stable) มาโดยตลอดก่อนหน้านี้</label>
+            </div>
+
+            <button class="primary-btn" onclick="calculateOPD()">Calculate Maintenance</button>
+
+            <div id="opdOutput" class="output" style="display: none;" aria-live="polite">
+                <h2>📋 แผนการจัดการที่แนะนำ</h2>
+                <div id="emergencyAlert" class="emergency-alert" style="display: none;"></div>
+                <div id="trendAlert" class="trend-alert" style="display: none;"></div>
+                <div id="stableAlert" class="stable-alert" style="display: none;"></div>
+
+                <div id="holdStep" class="step-box" style="display: none;">
+                    <div class="step-header">▶ Step 1: Hold Dose &amp; Acute Management</div>
+                    <div id="holdInstructions" style="font-size: 15px; line-height: 1.5;"></div>
+                </div>
+
+                <div id="maintenanceStep" class="step-box">
+                    <div id="maintenanceHeader" class="step-header maintenance">▶ Step 2: New Maintenance Regimen</div>
+                    <div class="target-dose" id="weeklyDoseDisplay"></div>
+                    <div class="calc-note" id="calcNoteDisplay"></div>
+
+                    <div style="margin:15px 0 10px 0; font-weight:600; color:var(--brand-ink);" id="optionsTitle">ทางเลือกการจัดยา:</div>
+                    <div id="regimenDisplay" class="options-grid"></div>
+                </div>
+                <div id="followupBox" class="followup-box"></div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: IPD (Warfarin Initiation & Bridging)-->
+        <!-- ========================================== -->
+        <div id="ipdTab" class="tab-content" role="tabpanel">
+            <div class="clinical-checklist" style="background: #fdf2e9; border-left-color: #e67e22;">
+                <strong>⚠️ Note on Early Hypercoagulability:</strong>
+                <ul>
+                    <li>Warfarin ในช่วงแรกจะลด Protein C/S ก่อน Factor II, IX, X</li>
+                    <li><strong>อาจทำให้ลิ่มเลือดอุดตันเพิ่มขึ้นในระยะสั้น</strong> ต้องทำ LMWH Bridging ใน High-risk thrombosis</li>
+                </ul>
+            </div>
+
+            <div class="collapsible">
+                <button type="button" class="collapsible-toggle" aria-expanded="false" aria-controls="hasBledBody" onclick="toggleCollapsible(this)">
+                    <span>📊 HAS-BLED Bleeding Risk Calculator</span>
+                    <span class="collapsible-chevron">▾</span>
+                </button>
+                <div id="hasBledBody" class="collapsible-body">
+                    <div id="hasBledChecklist"></div>
+                    <div id="hasBledScoreDisplay" class="risk-score-display low">HAS-BLED score: 0</div>
+                </div>
+            </div>
+
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="ipdBridging">
+                <label for="ipdBridging">
+                    <strong>Need LMWH Bridging:</strong><br>
+                    Acute VTE, Mechanical Valve, หรือ High-risk AF
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label for="ipdTargetRange">INR Target Range (เป้าหมาย)</label>
+                <select id="ipdTargetRange">
+                    <option value="2-3" selected>2 - 3 (มาตรฐานทั่วไป, Aortic Mech Valve)</option>
+                    <option value="2.5-3.5">2.5 - 3.5 (Mitral Mech Valve, APS)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="ipdDay">Day of Therapy (วันที่รับยา Warfarin)</label>
+                <select id="ipdDay">
+                    <option value="1">Day 1 - 2 (เริ่มโหลด/ให้ยาเบื้องต้น)</option>
+                    <option value="3">Day 3 (เริ่มประเมินผล)</option>
+                    <option value="4">Day 4</option>
+                    <option value="5">Day 5+</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 15px;" id="ipdInrGroup">
+                <div class="form-group" style="flex: 1;">
+                    <label for="ipdINR">Today's INR</label>
+                    <input type="number" id="ipdINR" min="0.5" max="20" step="0.1" value="1.2" aria-describedby="ipdINRError">
+                    <span id="ipdINRError" class="field-error" role="alert"></span>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label for="ipdPrevINR">Yesterday INR <span class="optional-label">(Optional)</span></label>
+                    <input type="number" id="ipdPrevINR" min="0.5" max="20" step="0.1" placeholder="เช็ค Trend">
+                </div>
+            </div>
+
+            <button class="primary-btn" onclick="calculateIPD()">Generate Protocol</button>
+
+            <div id="ipdOutput" class="output" style="display: none;" aria-live="polite">
+                <h2>🏥 IPD Initiation Protocol</h2>
+
+                <div id="ipdTrendAlert" class="trend-alert" style="display:none;"></div>
+
+                <div id="bridgingAlert" class="bridging-rule" style="display:none;">
+                    <strong>💉 LMWH Bridging Golden Rule:</strong>
+                    <ul>
+                        <li><strong>Dose:</strong> Enoxaparin 1 mg/kg BID หรือ 1.5 mg/kg daily</li>
+                        <li><strong>ห้ามหยุด LMWH</strong> จนกว่าจะเข้าเงื่อนไข <u>ทั้ง 2 ข้อ</u>:</li>
+                        <li>1) ได้รับ LMWH <strong>ขั้นต่ำ 5 วัน</strong></li>
+                        <li>2) ค่า INR ≥ Target <strong>อย่างน้อย 24 ชั่วโมง</strong></li>
+                    </ul>
+                </div>
+
+                <div class="step-box">
+                    <div class="step-header">▶ ขนาดยาที่แนะนำ (Today's Dose)</div>
+                    <div id="ipdDoseText" class="dose-highlight"></div>
+                    <div id="ipdDoseNote" style="font-size: 15px; color: #5a6b7a;"></div>
+                </div>
+
+                <div class="followup-box" style="margin-top: 15px; background: #eafaf1; border-color: #2ecc71; color: #27ae60;">
+                    📅 <strong>Monitoring:</strong> INR should be checked daily during initiation until stable.
+                </div>
+            </div>
+        </div>
+
+        <button type="button" id="printBtn" class="print-btn">🖨️ Print / Save Summary</button>
+
+        <div class="footer-note">
+            ⚠️ <strong>For clinician decision support only.</strong><br>
+            Does not replace clinical judgement or guideline-based management. The interaction checklist and bleeding-risk score are informational aids and do <strong>not</strong> automatically change the calculated dose.<br>
+            อ้างอิง: CHEST Guidelines, HAS-BLED (Pisters et al., Chest 2010) &amp; Practical Anticoagulation Management.<br>
+            Content last reviewed: 2026-07-05.
+            <div class="hospital-footer-line">โรงพยาบาลมหาชัย 2 (Mahachai 2 Hospital) — สำหรับใช้งานภายในโรงพยาบาลเท่านั้น / Internal use only.</div>
+        </div>
+    </div>
+
+    <!-- Load order matters: shared logic modules first, then DOM-wiring modules, then app.js -->
+    <script src="../js/tabletOptimizer.js"></script>
+    <script src="../js/bleedingRisk.js"></script>
+    <script src="../js/interactions.js"></script>
+    <script src="../js/opd.js"></script>
+    <script src="../js/ipd.js"></script>
+    <script src="../js/ui.js"></script>
+    <script src="../js/app.js"></script>
+</body>
+</html>
