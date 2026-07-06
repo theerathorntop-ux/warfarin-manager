@@ -39,6 +39,22 @@ node tests/run.js
 Covers the tablet-combination optimizer, the OPD dose-adjustment math, the IPD day-by-day dose
 decision, and the HAS-BLED score — all pure functions with no DOM dependency.
 
+## Hospital-branded editions
+
+`mahachai2/` is a rebranded edition for internal use at Mahachai 2 Hospital. It does **not**
+duplicate the dosing logic — its `index.html` loads the same `../css/styles.css` and `../js/*.js`
+files as the root app, so any future fix to the core OPD/IPD math applies to every edition
+automatically. It only adds:
+
+- `mahachai2/css/hospital.css` — overrides the `--brand-*` CSS custom properties defined at the
+  top of `css/styles.css` (colors only; layout/logic untouched) and styles the header/logo block.
+- `mahachai2/img/mh2-logo.png` — the hospital's logo.
+- Its own `index.html` with a `<header class="hospital-header">` (logo + hospital name) and a
+  hospital line in the footer, otherwise identical markup to the root page.
+
+To create another hospital's edition, copy the `mahachai2/` folder, swap the logo image, update
+the hospital name text and `--brand-*` colors in its `hospital.css`, and update the `<title>`.
+
 ## Clinical scope note
 
 The interaction checklist and HAS-BLED bleeding-risk calculator are **informational aids only**
