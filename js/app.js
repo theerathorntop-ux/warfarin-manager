@@ -69,6 +69,22 @@
         });
     }
 
+    function wireDoseInputMode() {
+        var OPD = window.WM.opd;
+        OPD.renderDailyDoseTable('dailyDoseTable');
+        document.getElementById('dailyDoseTable').addEventListener('input', OPD.computeDailyDoseTotal);
+
+        var totalGroup = document.getElementById('totalDoseGroup');
+        var dailyGroup = document.getElementById('dailyDoseGroup');
+        document.querySelectorAll('input[name="doseInputMode"]').forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                var isByDay = this.value === 'byday';
+                totalGroup.style.display = isByDay ? 'none' : 'block';
+                dailyGroup.style.display = isByDay ? 'block' : 'none';
+            });
+        });
+    }
+
     function wireIpdDayToggle() {
         document.getElementById('ipdDay').addEventListener('change', function () {
             var day = parseInt(this.value, 10);
@@ -98,10 +114,11 @@
         renderHasBledChecklist();
         wireIndicationSelect();
         wireInteractionChecklist();
+        wireDoseInputMode();
         wireIpdDayToggle();
         wireTabKeyboardNav();
         wirePrintButton();
         document.getElementById('ipdInrGroup').style.display = 'none';
-        window.WM.opd.calculateOPD();
+        // No preset dose/INR values anymore, so don't auto-calculate on load - wait for input.
     });
 })();

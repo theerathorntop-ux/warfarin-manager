@@ -131,12 +131,65 @@
         return html;
     }
 
+    // Day-by-day dose entry: lets a nurse/clinician report the actual tablets taken each day
+    // (strength x quantity, matching the same 2/3/5mg tablet strengths used by the tablet
+    // optimizer) instead of having to pre-calculate a weekly total themselves.
+    var DAYS = [
+        { key: 'mon', label: 'จันทร์' }, { key: 'tue', label: 'อังคาร' }, { key: 'wed', label: 'พุธ' },
+        { key: 'thu', label: 'พฤหัสบดี' }, { key: 'fri', label: 'ศุกร์' }, { key: 'sat', label: 'เสาร์' },
+        { key: 'sun', label: 'อาทิตย์' }
+    ];
+    var DAILY_STRENGTHS = [2, 3, 5];
+
+    function renderDailyDoseTable(containerId) {
+        var container = document.getElementById(containerId);
+        if (!container) return;
+        var html = '';
+        DAYS.forEach(function (day) {
+            html += '<div class="daily-dose-row" data-day="' + day.key + '">'
+                + '<span class="day-label">' + day.label + '</span>'
+                + '<select class="daily-strength" data-day="' + day.key + '">'
+                + DAILY_STRENGTHS.map(function (s) { return '<option value="' + s + '">' + s + ' mg/เม็ด</option>'; }).join('')
+                + '</select>'
+                + '<input type="number" class="daily-qty" data-day="' + day.key + '" min="0" max="4" step="0.5" value="0">'
+                + '<span class="daily-computed" data-day="' + day.key + '">0 mg</span>'
+                + '</div>';
+        });
+        container.innerHTML = html;
+    }
+
+    function computeDailyDoseTotal() {
+        var total = 0;
+        DAYS.forEach(function (day) {
+            var strengthEl = document.querySelector('.daily-strength[data-day="' + day.key + '"]');
+            var qtyEl = document.querySelector('.daily-qty[data-day="' + day.key + '"]');
+            var computedEl = document.querySelector('.daily-computed[data-day="' + day.key + '"]');
+            if (!strengthEl || !qtyEl) return;
+            var strength = parseFloat(strengthEl.value);
+            var qty = parseFloat(qtyEl.value);
+            var daily = (isNaN(strength) || isNaN(qty)) ? 0 : strength * qty;
+            if (computedEl) computedEl.textContent = daily + ' mg';
+            total += daily;
+        });
+        total = Math.round(total * 10) / 10;
+        var totalDisplay = document.getElementById('dailyDoseTotalDisplay');
+        if (totalDisplay) totalDisplay.textContent = total;
+        return total;
+    }
+
+    function getActiveDoseInputMode() {
+        var checked = document.querySelector('input[name="doseInputMode"]:checked');
+        return checked ? checked.value : 'total';
+    }
+
     function calculateOPD() {
         var UI = global.WM.ui;
         var currentDoseEl = document.getElementById('currentDose');
         var currentINREl = document.getElementById('currentINR');
+        var dailyDoseErrorEl = document.getElementById('dailyDoseError');
+        var mode = getActiveDoseInputMode();
 
-        var currentDose = parseFloat(currentDoseEl.value);
+        var currentDose = (mode === 'byday') ? computeDailyDoseTotal() : parseFloat(currentDoseEl.value);
         var currentINR = parseFloat(currentINREl.value);
         var prevInrInput = document.getElementById('prevInrOpd').value;
         var prevInr = parseFloat(prevInrInput);
@@ -148,8 +201,14 @@
 
         UI.clearFieldError(currentDoseEl);
         UI.clearFieldError(currentINREl);
+        if (dailyDoseErrorEl) dailyDoseErrorEl.classList.remove('visible');
         var hasError = false;
-        if (isNaN(currentDose) || currentDose <= 0) { UI.showFieldError(currentDoseEl, 'กรุณากรอกขนาดยาปัจจุบัน'); hasError = true; }
+        if (mode === 'byday') {
+            if (isNaN(currentDose) || currentDose <= 0) {
+                if (dailyDoseErrorEl) { dailyDoseErrorEl.textContent = 'กรุณากรอกขนาดยาอย่างน้อย 1 วัน'; dailyDoseErrorEl.classList.add('visible'); }
+                hasError = true;
+            }
+        } else if (isNaN(currentDose) || currentDose <= 0) { UI.showFieldError(currentDoseEl, 'กรุณากรอกขนาดยาปัจจุบัน'); hasError = true; }
         if (isNaN(currentINR) || currentINR <= 0) { UI.showFieldError(currentINREl, 'กรุณากรอก INR'); hasError = true; }
         if (hasError) return;
 
@@ -240,7 +299,10 @@
         document.getElementById('opdOutput').style.display = 'block';
     }
 
-    var api = { warfarinAdjustment: warfarinAdjustment, createOptionCard: createOptionCard, calculateOPD: calculateOPD };
+    var api = {
+        warfarinAdjustment: warfarinAdjustment, createOptionCard: createOptionCard, calculateOPD: calculateOPD,
+        renderDailyDoseTable: renderDailyDoseTable, computeDailyDoseTotal: computeDailyDoseTotal, DAYS: DAYS
+    };
 
     if (typeof window !== "undefined") {
         window.WM = window.WM || {};

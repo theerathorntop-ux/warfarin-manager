@@ -60,15 +60,35 @@
             </div>
 
             <div class="form-group">
+                <label>วิธีกรอกขนาดยาปัจจุบัน</label>
+                <div class="dose-mode-toggle" role="radiogroup" aria-label="วิธีกรอกขนาดยาปัจจุบัน">
+                    <label class="dose-mode-option">
+                        <input type="radio" name="doseInputMode" value="total" id="doseModeTotal" checked>
+                        ขนาดยารวมต่อสัปดาห์
+                    </label>
+                    <label class="dose-mode-option">
+                        <input type="radio" name="doseInputMode" value="byday" id="doseModeByDay">
+                        กรอกทีละวัน (รวมอัตโนมัติ)
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group" id="totalDoseGroup">
                 <label for="currentDose">Current weekly dose (mg/wk)</label>
-                <input type="number" id="currentDose" min="1" max="105" step="0.1" value="21" aria-describedby="currentDoseError">
+                <input type="number" id="currentDose" min="1" max="105" step="0.1" placeholder="เช่น 21" aria-describedby="currentDoseError">
                 <span id="currentDoseError" class="field-error" role="alert"></span>
+            </div>
+
+            <div class="form-group" id="dailyDoseGroup" style="display: none;">
+                <div id="dailyDoseTable"></div>
+                <div class="daily-dose-total">รวมต่อสัปดาห์: <strong id="dailyDoseTotalDisplay">0</strong> mg/สัปดาห์</div>
+                <span id="dailyDoseError" class="field-error" role="alert"></span>
             </div>
 
             <div style="display: flex; gap: 15px;">
                 <div class="form-group" style="flex: 1;">
                     <label for="currentINR">Current INR</label>
-                    <input type="number" id="currentINR" min="0.5" max="20" step="0.1" value="4.2" aria-describedby="currentINRError">
+                    <input type="number" id="currentINR" min="0.5" max="20" step="0.1" placeholder="เช่น 2.5" aria-describedby="currentINRError">
                     <span id="currentINRError" class="field-error" role="alert"></span>
                 </div>
                 <div class="form-group" style="flex: 1;">
