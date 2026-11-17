@@ -78,6 +78,24 @@ test('rapid fall in INR (delta <= -0.8) triggers trend correction message', func
     assert.ok(data.trendMessage.length > 0);
 });
 
+console.log('opd.js: rapidFluctuationMessage() / isMinorDeviation()');
+test('swing >= +1.5 -> interaction fluctuation message (was unreachable before)', function () {
+    assert.ok(OPD.rapidFluctuationMessage(3.6, 2.0).indexOf('แกว่งขึ้น') !== -1);
+});
+test('swing <= -1.5 -> adherence fluctuation message', function () {
+    assert.ok(OPD.rapidFluctuationMessage(1.4, 3.0).indexOf('แกว่งลง') !== -1);
+});
+test('swing of 1.0 or missing previous INR -> no fluctuation message', function () {
+    assert.strictEqual(OPD.rapidFluctuationMessage(3.0, 2.0), '');
+    assert.strictEqual(OPD.rapidFluctuationMessage(3.0, NaN), '');
+});
+test('isMinorDeviation: 1.8 and 3.2 are minor for 2-3, 2.5 and 3.5 are not', function () {
+    assert.strictEqual(OPD.isMinorDeviation(1.8, 2.0, 3.0), true);
+    assert.strictEqual(OPD.isMinorDeviation(3.2, 2.0, 3.0), true);
+    assert.strictEqual(OPD.isMinorDeviation(2.5, 2.0, 3.0), false);
+    assert.strictEqual(OPD.isMinorDeviation(3.5, 2.0, 3.0), false);
+});
+
 console.log('ipd.js: ipdDoseDecision()');
 test('day 1, standard risk -> 5.0mg starting dose', function () {
     var r = IPD.ipdDoseDecision({ day: 1, inr: NaN, prevInr: NaN, isFrail: false, hasBledScore: 0, lowTarget: 2, highTarget: 3 });

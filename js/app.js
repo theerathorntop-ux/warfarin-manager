@@ -105,6 +105,32 @@
         });
     }
 
+    // Hide a previously calculated result as soon as any input it depends on changes, so a stale
+    // recommendation can never be read off the screen (or printed) after the inputs were edited.
+    function hideOutput(outputId) {
+        var el = document.getElementById(outputId);
+        if (el) el.style.display = 'none';
+    }
+
+    function wireStaleResultGuard() {
+        [['opdTab', 'opdOutput'], ['ipdTab', 'ipdOutput']].forEach(function (pair) {
+            var tab = document.getElementById(pair[0]);
+            if (!tab) return;
+            ['input', 'change'].forEach(function (evt) {
+                tab.addEventListener(evt, function (e) {
+                    if (e.target.closest('#' + pair[1])) return;
+                    hideOutput(pair[1]);
+                });
+            });
+        });
+        // Indication changes the target range of both tabs programmatically (no change event on them).
+        var indication = document.getElementById('indicationSelect');
+        if (indication) indication.addEventListener('change', function () {
+            hideOutput('opdOutput');
+            hideOutput('ipdOutput');
+        });
+    }
+
     function wirePrintButton() {
         var btn = document.getElementById('printBtn');
         if (btn) btn.addEventListener('click', function () { window.print(); });
@@ -117,6 +143,7 @@
         wireDoseInputMode();
         wireIpdDayToggle();
         wireTabKeyboardNav();
+        wireStaleResultGuard();
         wirePrintButton();
         document.getElementById('ipdInrGroup').style.display = 'none';
         // No preset dose/INR values anymore, so don't auto-calculate on load - wait for input.
