@@ -28,6 +28,35 @@
         updateHasBledScore();
     }
 
+    function renderSensitivityChecklist() {
+        var IPD = window.WM.ipd;
+        var container = document.getElementById('sensitivityChecklist');
+        if (!container) return;
+        container.innerHTML = IPD.SENSITIVITY_ITEMS.map(function (item) {
+            return '<div class="checkbox-group"><input type="checkbox" id="' + item.id + '">'
+                + '<label for="' + item.id + '">' + item.label + '</label></div>';
+        }).join('');
+        container.addEventListener('change', updateStartDoseDisplay);
+    }
+
+    // Shows which IPD starting dose applies and why (sensitivity factors, INR-raising drugs, HAS-BLED).
+    function updateStartDoseDisplay() {
+        var display = document.getElementById('startDoseDisplay');
+        if (!display) return;
+        var BR = window.WM.bleedingRisk;
+        var checked = [];
+        document.querySelectorAll('#hasBledChecklist input[type="checkbox"]:checked').forEach(function (cb) { checked.push(cb.id); });
+        var reasons = window.WM.ipd.currentLowDoseReasons(BR.computeScore(checked));
+        display.classList.remove('high', 'low');
+        if (reasons.length) {
+            display.textContent = 'ขนาดเริ่มต้น: 2.5 mg/วัน — ' + reasons.join(', ');
+            display.classList.add('high');
+        } else {
+            display.textContent = 'ขนาดเริ่มต้น: 5 mg/วัน (มาตรฐาน)';
+            display.classList.add('low');
+        }
+    }
+
     function updateHasBledScore() {
         var BR = window.WM.bleedingRisk;
         var checked = [];
@@ -42,6 +71,7 @@
             display.classList.remove('high', 'low');
             display.classList.add(isHigh ? 'high' : 'low');
         }
+        updateStartDoseDisplay();
     }
 
     function wireIndicationSelect() {
@@ -66,6 +96,9 @@
         window.WM.interactions.render('interactionChecklist');
         document.getElementById('interactionChecklist').addEventListener('change', function () {
             window.WM.interactions.updateAdvisory('interactionChecklist', 'interactionAdvisory');
+            // INR-raising drugs now lower the IPD starting dose, so a shown IPD result is stale.
+            updateStartDoseDisplay();
+            hideOutput('ipdOutput');
         });
     }
 
@@ -137,6 +170,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        renderSensitivityChecklist();
         renderHasBledChecklist();
         wireIndicationSelect();
         wireInteractionChecklist();

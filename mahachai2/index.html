@@ -111,6 +111,15 @@
                 </select>
             </div>
 
+            <div class="form-group">
+                <label for="bleedingStatus">อาการเลือดออก (Bleeding)</label>
+                <select id="bleedingStatus">
+                    <option value="none" selected>ไม่มี</option>
+                    <option value="minor">มีเลือดออกเล็กน้อย (Minor: จ้ำเลือด, เลือดออกตามไรฟัน, เลือดกำเดาหยุดเองได้)</option>
+                    <option value="major">มีเลือดออกรุนแรง (Major: GI bleed, ICH, Hb ลด ≥ 2 g/dL, ต้องให้เลือด)</option>
+                </select>
+            </div>
+
             <div class="form-group checkbox-group">
                 <input type="checkbox" id="wasStable">
                 <label for="wasStable">คนไข้มีค่า INR คงที่ (Stable) มาโดยตลอดก่อนหน้านี้</label>
@@ -122,6 +131,8 @@
                 <h2>📋 แผนการจัดการที่แนะนำ</h2>
                 <div id="emergencyAlert" class="emergency-alert" style="display: none;"></div>
                 <div id="trendAlert" class="trend-alert" style="display: none;"></div>
+                <div id="bleedAlert" class="trend-alert" style="display: none;"></div>
+                <div id="valveAlert" class="trend-alert" style="display: none;"></div>
                 <div id="stableAlert" class="stable-alert" style="display: none;"></div>
 
                 <div id="holdStep" class="step-box" style="display: none;">
@@ -162,6 +173,12 @@
                     <div id="hasBledChecklist"></div>
                     <div id="hasBledScoreDisplay" class="risk-score-display low">HAS-BLED score: 0</div>
                 </div>
+            </div>
+
+            <div class="form-group">
+                <label>ปัจจัยที่ไวต่อ Warfarin <span class="optional-label">(ข้อใดข้อหนึ่ง → เริ่มยาขนาดต่ำ 2.5 mg)</span></label>
+                <div id="sensitivityChecklist"></div>
+                <div id="startDoseDisplay" class="risk-score-display low"></div>
             </div>
 
             <div class="form-group checkbox-group">
@@ -213,6 +230,7 @@
                     <strong>💉 LMWH Bridging Golden Rule:</strong>
                     <ul>
                         <li><strong>Dose:</strong> Enoxaparin 1 mg/kg BID หรือ 1.5 mg/kg daily</li>
+                        <li><strong>CrCl &lt; 30 mL/min:</strong> ลดเป็น Enoxaparin 1 mg/kg วันละครั้ง (หรือพิจารณา UFH)</li>
                         <li><strong>ห้ามหยุด LMWH</strong> จนกว่าจะเข้าเงื่อนไข <u>ทั้ง 2 ข้อ</u>:</li>
                         <li>1) ได้รับ LMWH <strong>ขั้นต่ำ 5 วัน</strong></li>
                         <li>2) ค่า INR ≥ Target <strong>อย่างน้อย 24 ชั่วโมง</strong></li>

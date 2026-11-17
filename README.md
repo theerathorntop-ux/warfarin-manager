@@ -57,8 +57,23 @@ the hospital name text and `--brand-*` colors in its `hospital.css`, and update 
 
 ## Clinical scope note
 
-The interaction checklist and HAS-BLED bleeding-risk calculator are **informational aids only**
-— they surface warnings and feed into which IPD starting-dose branch is used, but they do not
-automatically change the calculated dose. The core OPD/IPD dosing algorithm is unchanged from
-the original single-file version; only additive fields were introduced. Any future change to the
-core dosing math should be clinically reviewed before use.
+The interaction checklist and HAS-BLED bleeding-risk calculator do not change the OPD dose. In
+IPD, HAS-BLED ≥ 3, any warfarin-sensitivity factor, or a checked INR-raising drug selects the
+reduced (2.5 mg) starting-dose branch.
+
+**v2.1 changes to the dosing logic (require clinical review before use):**
+
+- OPD trend correction applies only when the INR is out of range; a fast-rising low INR halves
+  the increase (it never turns into a decrease), and a fast-falling high INR no longer weakens the
+  reduction.
+- Suggested regimens must move the dose in the target direction and land within 5% (or 1 mg/wk)
+  of the target, relaxed to 10% / 1.5 mg only if nothing fits. Each option shows its actual %
+  change. Skip-day regimens no longer get a scoring bonus.
+- Day-by-day entry adds an "adjust current regimen" option that changes as few days as possible.
+- Stable patient with a single INR ≤ 0.5 outside the range (CHEST 2012): keep the current dose,
+  recheck in 1–2 weeks.
+- New OPD bleeding field (major → emergency management; minor → advisory, recheck ≤ 1 week),
+  mechanical-valve low-INR bridging advisory, and enoxaparin renal adjustment note.
+
+Still open for the clinical team: whether the standard IPD starting dose should be 5 mg or a
+lower dose (e.g. 3 mg) for this patient population.
