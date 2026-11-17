@@ -2,12 +2,36 @@
 (function (global) {
     "use strict";
 
+    // Patient factors that increase warfarin sensitivity, for which CHEST suggests a lower
+    // starting dose (elderly, low body weight, liver disease, heart failure, poor nutrition,
+    // interacting drugs). HAS-BLED >= 3 is kept as an additional low-dose trigger.
+    var SENSITIVITY_ITEMS = [
+        { id: 'sens_age', label: 'อายุ > 75 ปี' },
+        { id: 'sens_weight', label: 'น้ำหนัก < 50 kg' },
+        { id: 'sens_liver', label: 'โรคตับ / Albumin ต่ำ' },
+        { id: 'sens_chf', label: 'หัวใจล้มเหลว (Decompensated CHF)' },
+        { id: 'sens_nutrition', label: 'ทุพโภชนาการ / กินได้น้อย / NPO' },
+        { id: 'sens_thyroid', label: 'Hyperthyroidism' }
+    ];
+
+    // Pure: reasons to start at the reduced dose. checkedSensitivity = labels of checked items;
+    // incInrDrugs = names of checked INR-raising interacting drugs.
+    function lowDoseStartReasons(hasBledScore, checkedSensitivity, incInrDrugs) {
+        var reasons = (checkedSensitivity || []).slice();
+        if (incInrDrugs && incInrDrugs.length) reasons.push('ใช้ยาที่เพิ่ม INR ร่วม (' + incInrDrugs.join(', ') + ')');
+        if (hasBledScore >= 3) reasons.push('HAS-BLED ' + hasBledScore + ' (High bleeding risk)');
+        return reasons;
+    }
+
     // Pure decision logic: no DOM access, safe to unit test directly.
-    // params: { day, inr, prevInr, isFrail, hasBledScore, lowTarget, highTarget }
+    // params: { day, inr, prevInr, isFrail, hasBledScore, lowTarget, highTarget, lowDoseReasons? }
     function ipdDoseDecision(params) {
         var day = params.day, inr = params.inr, prevInr = params.prevInr;
         var isFrail = params.isFrail, hasBledScore = params.hasBledScore;
         var lowTarget = params.lowTarget, highTarget = params.highTarget;
+        var reasonText = (params.lowDoseReasons && params.lowDoseReasons.length)
+            ? params.lowDoseReasons.join(', ')
+            : 'HAS-BLED score ' + hasBledScore + ' หรือมีปัจจัยเสี่ยงสูง';
 
         var doseText = "";
         var noteText = "";
@@ -22,7 +46,7 @@
         if (day === 1 || day === 2) {
             doseText = "ให้ยา " + baseDose + " mg";
             noteText = isFrail
-                ? "(เริ่มยา 2.5 mg เนื่องจาก HAS-BLED score " + hasBledScore + " หรือมีปัจจัยเสี่ยงสูง. ไม่แนะนำให้ Loading 10mg)"
+                ? "(เริ่มยา 2.5 mg เนื่องจาก: " + reasonText + ". ไม่แนะนำให้ Loading 10mg)"
                 : "(เริ่มยามาตรฐาน 5 mg. ไม่แนะนำให้ Loading 10mg ป้องกันลด Protein C เร็วเกินไป)";
         }
         else if (day === 3 || day === 4) {
@@ -30,7 +54,7 @@
 
             if (isFrail && inr > 3.0) {
                 doseText = "🛑 HOLD ยา ทันที";
-                noteText = "<strong>⚠️ High Bleeding Risk (HAS-BLED " + hasBledScore + "):</strong> คนไข้ INR ชูตสูงและมีความเสี่ยง Bleeding สูง ควรงดยา 1 มื้อและเจาะซ้ำ";
+                noteText = "<strong>⚠️ High-risk patient (" + reasonText + "):</strong> คนไข้ INR ชูตสูงและไวต่อยา/เสี่ยง Bleeding สูง ควรงดยา 1 มื้อและเจาะซ้ำ";
             }
             else if (baseDose === 5.0) {
                 if (inr < 1.5) {
@@ -101,6 +125,20 @@
         return { needsInr: needsInr, doseText: doseText, noteText: noteText, isRapidRise: isRapidRise };
     }
 
+    // DOM: gathers checked sensitivity factors + INR-raising drugs from the shared interaction checklist.
+    function currentLowDoseReasons(hasBledScore) {
+        var checked = [];
+        SENSITIVITY_ITEMS.forEach(function (item) {
+            var cb = document.getElementById(item.id);
+            if (cb && cb.checked) checked.push(item.label);
+        });
+        var upDrugs = [];
+        document.querySelectorAll('#interactionChecklist input[data-category="up"]:checked').forEach(function (cb) {
+            upDrugs.push(cb.getAttribute('data-label'));
+        });
+        return lowDoseStartReasons(hasBledScore, checked, upDrugs);
+    }
+
     function calculateIPD() {
         var UI = global.WM.ui;
         var BR = global.WM.bleedingRisk;
@@ -110,7 +148,8 @@
             checkedHasBled.push(cb.id);
         });
         var hasBledScore = BR.computeScore(checkedHasBled);
-        var isFrail = BR.isHighRisk(hasBledScore);
+        var lowDoseReasons = currentLowDoseReasons(hasBledScore);
+        var isFrail = lowDoseReasons.length > 0;
 
         var needBridge = document.getElementById('ipdBridging').checked;
         var day = parseInt(document.getElementById('ipdDay').value, 10);
@@ -130,7 +169,7 @@
 
         var result = ipdDoseDecision({
             day: day, inr: inr, prevInr: prevInr, isFrail: isFrail,
-            hasBledScore: hasBledScore, lowTarget: lowTarget, highTarget: highTarget
+            hasBledScore: hasBledScore, lowTarget: lowTarget, highTarget: highTarget, lowDoseReasons: lowDoseReasons
         });
 
         // Only reveal the output once a valid recommendation exists, so a missing INR never leaves
@@ -151,7 +190,10 @@
         document.getElementById('ipdDoseNote').innerHTML = result.noteText;
     }
 
-    var api = { calculateIPD: calculateIPD, ipdDoseDecision: ipdDoseDecision };
+    var api = {
+        calculateIPD: calculateIPD, ipdDoseDecision: ipdDoseDecision,
+        SENSITIVITY_ITEMS: SENSITIVITY_ITEMS, lowDoseStartReasons: lowDoseStartReasons, currentLowDoseReasons: currentLowDoseReasons
+    };
     global.WM = global.WM || {};
     global.WM.ipd = api;
     if (typeof window !== "undefined") window.calculateIPD = calculateIPD; // referenced by inline onclick in index.html
