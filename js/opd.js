@@ -101,6 +101,32 @@
         return { topPlans: topPlans, exactTargetS: exactTargetS, trendMessage: trendMessage };
     }
 
+    // Pure: separate from the >= 0.8 trend correction above, a swing of >= 1.5 in either
+    // direction prompts the clinician to look for a cause (interacting drug / adherence).
+    // Previously this lived in an else-branch of the trend message, so it could never show
+    // (any swing >= 1.5 is also >= 0.8).
+    function rapidFluctuationMessage(currentINR, prevInr) {
+        if (isNaN(prevInr) || isNaN(currentINR)) return "";
+        var delta = currentINR - prevInr;
+        if (delta >= 1.5) return "⚠️ <strong>Rapid INR Fluctuation:</strong> INR แกว่งขึ้นอย่างรวดเร็วมาก โปรดซักประวัติยาที่ตีกัน (เช่น Abx) หรืออาหารเสริม";
+        if (delta <= -1.5) return "⚠️ <strong>Rapid INR Fluctuation:</strong> INR แกว่งลงอย่างรวดเร็วมาก โปรดซักประวัติเรื่อง Adherence เป็นพิเศษ";
+        return "";
+    }
+
+    // Pure: INR just outside the target range (within 0.3 below the low end or above the high end).
+    function isMinorDeviation(currentINR, lowTarget, highTarget) {
+        return (currentINR >= lowTarget - 0.3 && currentINR < lowTarget) || (currentINR > highTarget && currentINR <= highTarget + 0.3);
+    }
+
+    function createKeepCurrentCard(currentDose) {
+        return '<div class="option-card primary">'
+            + '<div class="option-badge">Option 1 (แนะนำ)</div>'
+            + '<div class="option-total">รวม ' + currentDose + ' mg/สัปดาห์</div>'
+            + '<div class="regimen-detail"><p>✅ <strong>คงตารางยาเดิม</strong> (ไม่ต้องเปลี่ยนวิธีทานยา)</p></div>'
+            + '<div class="tablet-hint">ตรวจสอบปัจจัยรบกวน (Adherence, อาหาร, ยาที่ตีกัน, ภาวะเจ็บป่วย) ก่อนตัดสินใจปรับยา</div>'
+            + '</div>';
+    }
+
     function createOptionCard(plan, optionNumber, isPrimary) {
         var dWd = plan.dWd, dWe = plan.dWe, pattern = plan.pattern, comboWd = plan.comboWd, comboWe = plan.comboWe, weeklyTotal = plan.weeklyTotal;
         var html = '<div class="option-card ' + (isPrimary ? 'primary' : '') + '">'
@@ -210,7 +236,7 @@
             }
         } else if (isNaN(currentDose) || currentDose <= 0) { UI.showFieldError(currentDoseEl, 'กรุณากรอกขนาดยาปัจจุบัน'); hasError = true; }
         if (isNaN(currentINR) || currentINR <= 0) { UI.showFieldError(currentINREl, 'กรุณากรอก INR'); hasError = true; }
-        if (hasError) return;
+        if (hasError) { document.getElementById('opdOutput').style.display = 'none'; return; }
 
         // Reset UI states
         document.getElementById('emergencyAlert').style.display = 'none';
@@ -225,17 +251,13 @@
         var data = warfarinAdjustment(currentDose, currentINR, targetRange, prevInr);
 
         var trendAlertDiv = document.getElementById('trendAlert');
-        if (data.trendMessage) {
+        var trendParts = [];
+        if (data.trendMessage) trendParts.push(data.trendMessage);
+        var fluctuationMsg = rapidFluctuationMessage(currentINR, prevInr);
+        if (fluctuationMsg) trendParts.push(fluctuationMsg);
+        if (trendParts.length) {
             trendAlertDiv.style.display = 'block';
-            trendAlertDiv.innerHTML = data.trendMessage;
-        } else if (!isNaN(prevInr)) {
-            if (currentINR - prevInr >= 1.5) {
-                trendAlertDiv.style.display = 'block';
-                trendAlertDiv.innerHTML = "⚠️ <strong>Rapid INR Fluctuation:</strong> INR แกว่งขึ้นอย่างรวดเร็วมาก โปรดซักประวัติยาที่ตีกัน (เช่น Abx) หรืออาหารเสริม";
-            } else if (prevInr - currentINR >= 1.5) {
-                trendAlertDiv.style.display = 'block';
-                trendAlertDiv.innerHTML = "⚠️ <strong>Rapid INR Fluctuation:</strong> INR แกว่งลงอย่างรวดเร็วมาก โปรดซักประวัติเรื่อง Adherence เป็นพิเศษ";
-            }
+            trendAlertDiv.innerHTML = trendParts.join('<br><br>');
         }
 
         if (currentINR > 10.0) {
@@ -248,8 +270,10 @@
             return;
         }
 
-        var isMinorDeviation = (currentINR >= lowTarget - 0.3 && currentINR < lowTarget) || (currentINR > highTarget && currentINR <= highTarget + 0.3);
-        if (wasStable && isMinorDeviation) {
+        // Stable patient + small out-of-range INR: recommend keeping the current regimen
+        // (computed adjustment is still offered as Option 2 for the clinician's discretion).
+        var keepCurrent = wasStable && isMinorDeviation(currentINR, lowTarget, highTarget);
+        if (keepCurrent) {
             document.getElementById('stableAlert').style.display = 'block';
             document.getElementById('stableAlert').innerHTML = "<strong>ℹ️ Patient Stability Suggestion:</strong><br>คนไข้เคยมีค่า INR Stable มาก่อน และแกว่งเล็กน้อย (±0.3) <em>พิจารณาคงขนาดยาเดิม (" + currentDose + " mg/wk)</em> และตรวจสอบปัจจัยรบกวน";
         }
@@ -278,20 +302,22 @@
         else if (pVal < 0) percentBadge = '<span class="badge decrease">⬇️ ต้องลดยา ' + pVal + '%</span>';
         else percentBadge = '<span class="badge neutral">➖ ขนาดยาคงเดิม</span>';
 
-        if (wasStable && isMinorDeviation && pVal === 0) {
-            document.getElementById('weeklyDoseDisplay').innerHTML = '<span>แนะนำให้ใช้ยาเดิม: ' + currentDose + ' mg/สัปดาห์</span> ' + percentBadge;
-            document.getElementById('calcNoteDisplay').innerText = "ระบบคำนวณได้ตารางยาเดิม เนื่องจากเป็น Minor fluctuation";
+        var optionsHtml;
+        if (keepCurrent) {
+            document.getElementById('weeklyDoseDisplay').innerHTML = '<span>แนะนำให้คงยาเดิม: ' + currentDose + ' mg/สัปดาห์</span> <span class="badge neutral">➖ ขนาดยาคงเดิม</span>';
+            document.getElementById('calcNoteDisplay').innerText = "Minor fluctuation ในคนไข้ที่เคย Stable — แนะนำคงยาเดิม หากแพทย์พิจารณาปรับยา ใช้ Option 2 (เป้าหมายที่คำนวณได้ "
+                + data.exactTargetS.toFixed(1) + " mg/สัปดาห์, " + (pVal > 0 ? "+" : "") + pVal + "%)";
+            optionsHtml = createKeepCurrentCard(currentDose) + createOptionCard(data.topPlans[0], 2, false);
         } else {
             document.getElementById('weeklyDoseDisplay').innerHTML = '<span>เป้าหมายใหม่ (Target): ' + data.exactTargetS.toFixed(1) + ' mg/สัปดาห์</span> ' + percentBadge;
             document.getElementById('calcNoteDisplay').innerText = "ระบบจัดทางเลือกการแบ่งยาที่ใกล้เคียงเป้าหมายให้ดังนี้";
+            optionsHtml = createOptionCard(data.topPlans[0], 1, true);
+            if (data.topPlans.length > 1) { optionsHtml += createOptionCard(data.topPlans[1], 2, false); }
         }
-
-        var optionsHtml = createOptionCard(data.topPlans[0], 1, true);
-        if (data.topPlans.length > 1) { optionsHtml += createOptionCard(data.topPlans[1], 2, false); }
         document.getElementById('regimenDisplay').innerHTML = optionsHtml;
 
         var followupText = "";
-        if (wasStable && isMinorDeviation && pVal === 0) followupText = "4 สัปดาห์ <span style='font-size:14px; font-weight:normal;'>(เนื่องจากคนไข้มีประวัติคงที่และไม่ได้ปรับยา)</span>";
+        if (keepCurrent) followupText = "1 - 2 สัปดาห์ <span style='font-size:14px; font-weight:normal;'>(คงยาเดิม ตรวจซ้ำเพื่อยืนยันว่า INR กลับเข้าเป้าหมาย)</span>";
         else if (isHoldingDose) followupText = "3 - 5 วัน <span style='font-size:14px; font-weight:normal;'>(ติดตามหลังงดยา)</span>";
         else followupText = "1 - 2 สัปดาห์ <span style='font-size:14px; font-weight:normal;'>(ติดตามหลังปรับขนาดยา)</span>";
 
@@ -301,6 +327,7 @@
 
     var api = {
         warfarinAdjustment: warfarinAdjustment, createOptionCard: createOptionCard, calculateOPD: calculateOPD,
+        rapidFluctuationMessage: rapidFluctuationMessage, isMinorDeviation: isMinorDeviation,
         renderDailyDoseTable: renderDailyDoseTable, computeDailyDoseTotal: computeDailyDoseTotal, DAYS: DAYS
     };
 

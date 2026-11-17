@@ -125,7 +125,6 @@
 
         UI.clearFieldError(inrEl);
 
-        document.getElementById('ipdOutput').style.display = 'block';
         document.getElementById('bridgingAlert').style.display = needBridge ? 'block' : 'none';
         document.getElementById('ipdTrendAlert').style.display = 'none';
 
@@ -134,7 +133,14 @@
             hasBledScore: hasBledScore, lowTarget: lowTarget, highTarget: highTarget
         });
 
-        if (result.needsInr) { UI.showFieldError(inrEl, 'กรุณาระบุ INR'); return; }
+        // Only reveal the output once a valid recommendation exists, so a missing INR never leaves
+        // the previous day's dose on screen.
+        if (result.needsInr) {
+            document.getElementById('ipdOutput').style.display = 'none';
+            UI.showFieldError(inrEl, 'กรุณาระบุ INR');
+            return;
+        }
+        document.getElementById('ipdOutput').style.display = 'block';
 
         if (result.isRapidRise && day >= 3) {
             document.getElementById('ipdTrendAlert').style.display = 'block';
