@@ -58,8 +58,9 @@ the hospital name text and `--brand-*` colors in its `hospital.css`, and update 
 ## Clinical scope note
 
 The interaction checklist and HAS-BLED bleeding-risk calculator do not change the OPD dose. In
-IPD, HAS-BLED ≥ 3, any warfarin-sensitivity factor, or a checked INR-raising drug selects the
-reduced (2.5 mg) starting-dose branch.
+IPD, HAS-BLED ≥ 3, any warfarin-sensitivity factor, or a checked *major* INR-raising drug (amiodarone,
+TMP-SMX, metronidazole, fluconazole — shown in bold) selects the reduced (2.5 mg) starting-dose
+branch. Milder interactions (e.g. omeprazole) stay advisory only.
 
 **v2.1 changes to the dosing logic (require clinical review before use):**
 
@@ -67,7 +68,9 @@ reduced (2.5 mg) starting-dose branch.
   the increase (it never turns into a decrease), and a fast-falling high INR no longer weakens the
   reduction.
 - Suggested regimens must move the dose in the target direction and land within 5% (or 1 mg/wk)
-  of the target, relaxed to 10% / 1.5 mg only if nothing fits. Each option shows its actual %
+  of the target, relaxed to 10% / 1.5 mg only if nothing fits. No plan ever moves against the
+  INR's need (e.g. an increase for a high INR); at very low doses (≤ ~5 mg/wk) where 2/3/5 mg
+  tablets cannot form a suitable regimen, the app says so and defers to the clinician. Each option shows its actual %
   change. Skip-day regimens no longer get a scoring bonus.
 - Day-by-day entry adds an "adjust current regimen" option that changes as few days as possible.
 - Stable patient with a single INR ≤ 0.5 outside the range (CHEST 2012): keep the current dose,

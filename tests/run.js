@@ -122,6 +122,24 @@ test('primary plan lands within 5% (or 1 mg) of target for a typical 28 mg/wk, I
     assert.ok(Math.abs(d.topPlans[0].weeklyTotal - d.exactTargetS) <= Math.max(28 * 0.05, 1.0));
     assert.ok(typeof d.topPlans[0].percentChange === 'number');
 });
+test('no plan ever moves against the INR need, at any dose 1-70 mg/wk (incl. trend cases)', function () {
+    for (var w = 1; w <= 70; w += 0.5) {
+        [1.2, 1.7, 3.2, 3.8, 4.2, 5].forEach(function (inr) {
+            [NaN, inr - 1, inr + 1].forEach(function (prev) {
+                var d = OPD.warfarinAdjustment(w, inr, '2-3', prev);
+                d.topPlans.forEach(function (p) {
+                    assert.strictEqual(Math.sign(p.weeklyTotal - w), d.need, 'w=' + w + ' INR=' + inr + ' plan ' + p.weeklyTotal);
+                    assert.ok(p.comboWd, 'plan must be a real tablet combination');
+                });
+            });
+        });
+    }
+});
+test('very low dose + high INR (3.5 mg/wk, INR 3.8) -> noFeasiblePlan, no increase suggested', function () {
+    var d = OPD.warfarinAdjustment(3.5, 3.8, '2-3', NaN);
+    assert.strictEqual(d.noFeasiblePlan, true);
+    assert.strictEqual(d.topPlans.length, 0);
+});
 test('3.5 mg floor never raises the dose when a reduction is needed', function () {
     var d = OPD.warfarinAdjustment(3, 5.0, '2-3', NaN);
     assert.ok(d.exactTargetS <= 3);

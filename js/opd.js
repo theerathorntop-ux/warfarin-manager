@@ -96,6 +96,9 @@
         // 3.5 mg/wk floor - but a dose reduction must never end up *raising* the dose.
         if (exactTargetS < 3.5) exactTargetS = factor < 1 ? Math.min(3.5, currentWeekly) : 3.5;
         var direction = sign(exactTargetS - currentWeekly);
+        // Clinical need from the INR itself. The floor can zero out `direction` for very low
+        // doses; even then a plan must never move the dose against this need.
+        var need = sign(factor - 1);
 
         // Precompute combos for every representable half-mg dose once, instead of recomputing
         // the same tablet-combination DP on every (dWd, dWe) pair in the search below.
@@ -111,7 +114,9 @@
                         var deviation = Math.abs(currentS - exactTargetS);
                         if (deviation > maxDeviation) continue;
                         // When a change is needed, the regimen must actually move the dose that way.
-                        if (direction !== 0 && sign(currentS - currentWeekly) !== direction) continue;
+                        var move = sign(currentS - currentWeekly);
+                        if (direction !== 0 && move !== direction) continue;
+                        if (need !== 0 && move === -need) continue;
 
                         var comboWd = comboCache[dWd];
                         var comboWe = comboCache[dWe];
@@ -151,6 +156,7 @@
         if (validPlans.length === 0) validPlans = searchPlans(maxDeviationFor(currentWeekly, PLAN_TOLERANCE_RELAXED));
 
         var topPlans = [];
+        var noFeasiblePlan = false;
         if (validPlans.length > 0) {
             topPlans.push(validPlans[0]);
             for (var i = 1; i < validPlans.length; i++) {
@@ -159,9 +165,16 @@
                 }
             }
         } else {
+            // Only fall back to an even daily dose when it is a real tablet combination and does
+            // not move against the clinical need; otherwise report that no regimen fits.
             var avg = Math.round((exactTargetS / 7) * 2) / 2;
-            var fallbackCombo = TO.getBestCombo(avg) || { cost: 0, combo: [{ d: avg, detail: "เม็ด", qty: 1 }] };
-            topPlans.push({ dWd: avg, dWe: avg, pattern: 0, weeklyTotal: avg * 7, comboWd: fallbackCombo, comboWe: fallbackCombo, percentChange: pct(avg * 7, currentWeekly) });
+            var fallbackCombo = TO.getBestCombo(avg);
+            var fallbackMove = sign(avg * 7 - currentWeekly);
+            if (fallbackCombo && fallbackCombo.cost > 0 && !(need !== 0 && fallbackMove === -need) && !(direction !== 0 && fallbackMove !== direction)) {
+                topPlans.push({ dWd: avg, dWe: avg, pattern: 0, weeklyTotal: avg * 7, comboWd: fallbackCombo, comboWe: fallbackCombo, percentChange: pct(avg * 7, currentWeekly) });
+            } else {
+                noFeasiblePlan = true;
+            }
         }
 
         var adjustedCurrent = adjustCurrentRegimen(currentDaily, exactTargetS, currentWeekly, comboCache,
@@ -170,7 +183,9 @@
             adjustedCurrent.combos = adjustedCurrent.daily.map(function (d) { return d > 0 ? comboCache[d] : null; });
         }
 
-        return { topPlans: topPlans, adjustedCurrent: adjustedCurrent, exactTargetS: exactTargetS, trendMessage: trend.message };
+        if (adjustedCurrent) noFeasiblePlan = false;
+
+        return { topPlans: topPlans, adjustedCurrent: adjustedCurrent, noFeasiblePlan: noFeasiblePlan, need: need, exactTargetS: exactTargetS, trendMessage: trend.message };
     }
 
     // Pure: separate from the >= 0.8 trend correction above, a swing of >= 1.5 in either
@@ -445,6 +460,12 @@
             document.getElementById('weeklyDoseDisplay').innerHTML = '<span>แนะนำให้คงยาเดิม: ' + currentDose + ' mg/สัปดาห์</span> <span class="badge neutral">➖ ขนาดยาคงเดิม</span>';
             document.getElementById('calcNoteDisplay').innerText = "Minor fluctuation ในคนไข้ที่เคย Stable — แนะนำคงยาเดิม หากแพทย์พิจารณาปรับยา ใช้ Option ถัดไป (เป้าหมายที่คำนวณได้ "
                 + data.exactTargetS.toFixed(1) + " mg/สัปดาห์, " + (pVal > 0 ? "+" : "") + pVal + "%)";
+        } else if (data.noFeasiblePlan) {
+            var needText = data.need < 0 ? 'ลด' : 'เพิ่ม';
+            document.getElementById('weeklyDoseDisplay').innerHTML = '<span>ต้อง' + needText + 'ยา แต่จัดตารางยาที่เหมาะสมไม่ได้</span> <span class="badge ' + (data.need < 0 ? 'decrease' : 'increase') + '">⚠️ ต้องให้แพทย์/เภสัชกรกำหนด</span>';
+            document.getElementById('calcNoteDisplay').innerText = "ขนาดยาปัจจุบัน " + currentDose + " mg/สัปดาห์ ต่ำมาก ระบบจัดตารางที่" + needText
+                + "ยาด้วยเม็ด 2/3/5 mg ไม่ได้ (ขั้นต่ำของระบบ 3.5 mg/สัปดาห์; ตารางที่เล็กที่สุดที่จัดได้ ~5 mg/สัปดาห์) — พิจารณางดยาบางวันหรือปรับเป็นรายวันตามดุลยพินิจแพทย์ และหาสาเหตุที่ทำให้ไวต่อยามาก";
+            cards = [];
         } else {
             document.getElementById('weeklyDoseDisplay').innerHTML = '<span>เป้าหมายใหม่ (Target): ' + data.exactTargetS.toFixed(1) + ' mg/สัปดาห์</span> ' + percentBadge;
             document.getElementById('calcNoteDisplay').innerText = data.adjustedCurrent
@@ -452,10 +473,12 @@
                 : "ระบบจัดทางเลือกการแบ่งยาที่ใกล้เคียงเป้าหมายให้ดังนี้";
         }
         document.getElementById('regimenDisplay').innerHTML = cards.map(function (make, i) { return make(i + 1, i === 0); }).join('');
+        document.getElementById('optionsTitle').style.display = cards.length ? 'block' : 'none';
 
         var followupText;
         if (bleeding === 'minor') followupText = "ภายใน 1 สัปดาห์ <span style='font-size:14px; font-weight:normal;'>(มีเลือดออกเล็กน้อย)</span>";
         else if (isHoldingDose) followupText = "3 - 5 วัน <span style='font-size:14px; font-weight:normal;'>(ติดตามหลังงดยา)</span>";
+        else if (data.noFeasiblePlan && !keepCurrent) followupText = "ภายใน 1 สัปดาห์ <span style='font-size:14px; font-weight:normal;'>(หลังแพทย์กำหนดขนาดยาใหม่)</span>";
         else if (keepCurrent) followupText = "1 - 2 สัปดาห์ <span style='font-size:14px; font-weight:normal;'>(คงยาเดิม ตรวจซ้ำเพื่อยืนยันว่า INR กลับเข้าเป้าหมาย)</span>";
         else if (pVal === 0) followupText = "ตามนัดเดิม <span style='font-size:14px; font-weight:normal;'>(INR อยู่ในช่วงเป้าหมาย)</span>";
         else followupText = "1 - 2 สัปดาห์ <span style='font-size:14px; font-weight:normal;'>(ติดตามหลังปรับขนาดยา)</span>";

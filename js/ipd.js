@@ -18,7 +18,7 @@
     // incInrDrugs = names of checked INR-raising interacting drugs.
     function lowDoseStartReasons(hasBledScore, checkedSensitivity, incInrDrugs) {
         var reasons = (checkedSensitivity || []).slice();
-        if (incInrDrugs && incInrDrugs.length) reasons.push('ใช้ยาที่เพิ่ม INR ร่วม (' + incInrDrugs.join(', ') + ')');
+        if (incInrDrugs && incInrDrugs.length) reasons.push('ใช้ยาที่เพิ่ม INR ชนิดรุนแรงร่วม (' + incInrDrugs.join(', ') + ')');
         if (hasBledScore >= 3) reasons.push('HAS-BLED ' + hasBledScore + ' (High bleeding risk)');
         return reasons;
     }
@@ -133,7 +133,8 @@
             if (cb && cb.checked) checked.push(item.label);
         });
         var upDrugs = [];
-        document.querySelectorAll('#interactionChecklist input[data-category="up"]:checked').forEach(function (cb) {
+        // Only major INR-raising interactions change the starting dose; milder ones stay advisory.
+        document.querySelectorAll('#interactionChecklist input[data-category="up"][data-major="1"]:checked').forEach(function (cb) {
             upDrugs.push(cb.getAttribute('data-label'));
         });
         return lowDoseStartReasons(hasBledScore, checked, upDrugs);
