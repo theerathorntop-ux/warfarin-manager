@@ -1,6 +1,6 @@
-// Categorized drug/diet interaction checklist. Purely informational: checking items shows an
-// advisory banner (closer monitoring / earlier recheck) but never changes the calculated dose -
-// the validated OPD/IPD dosing math in opd.js/ipd.js is untouched by this module.
+// Categorized drug/diet interaction checklist. Checking items shows an advisory banner (closer
+// monitoring / earlier recheck). It never changes the OPD dose; checked *major* INR-raising drugs
+// (majorItems) are read by ipd.js to select the reduced IPD starting dose.
 (function (global) {
     "use strict";
 
@@ -12,7 +12,9 @@
             items: [
                 'Amiodarone', 'TMP-SMX (Bactrim)', 'Metronidazole', 'Fluconazole',
                 'Ciprofloxacin', 'Azithromycin/Clarithromycin', 'Omeprazole (mild)'
-            ]
+            ],
+            // Major interactions (marked in bold): these also select the reduced IPD starting dose.
+            majorItems: ['Amiodarone', 'TMP-SMX (Bactrim)', 'Metronidazole', 'Fluconazole']
         },
         {
             key: 'down',
@@ -51,8 +53,9 @@
             html += '<div class="interaction-chip-row">';
             cat.items.forEach(function (item) {
                 var id = slug(cat.key, item);
-                html += '<label class="interaction-chip" for="' + id + '">'
-                    + '<input type="checkbox" id="' + id + '" data-category="' + cat.key + '" data-label="' + item + '">'
+                var isMajor = (cat.majorItems || []).indexOf(item) !== -1;
+                html += '<label class="interaction-chip' + (isMajor ? ' major' : '') + '" for="' + id + '"' + (isMajor ? ' title="ตีกันรุนแรง — มีผลต่อขนาดยาเริ่มต้น IPD"' : '') + '>'
+                    + '<input type="checkbox" id="' + id + '" data-category="' + cat.key + '" data-label="' + item + '"' + (isMajor ? ' data-major="1"' : '') + '>'
                     + '<span>' + item + '</span></label>';
             });
             html += '</div></div>';
@@ -93,7 +96,7 @@
         CATEGORIES.forEach(function (cat) {
             if (checked[cat.key].length) html += '<li><strong>' + cat.title + ':</strong> ' + checked[cat.key].join(', ') + '</li>';
         });
-        html += '</ul><em>พิจารณาตรวจ INR เร็วขึ้น/ถี่ขึ้นกว่าปกติ ตามดุลยพินิจแพทย์ (ระบบไม่ได้ปรับขนาดยาให้อัตโนมัติจากรายการนี้)</em>';
+        html += '</ul><em>พิจารณาตรวจ INR เร็วขึ้น/ถี่ขึ้นกว่าปกติ ตามดุลยพินิจแพทย์ (ระบบไม่ได้ปรับขนาดยา OPD จากรายการนี้ — แต่ยาที่ตีกันรุนแรง (ตัวหนา) ทำให้ IPD เริ่มยาขนาดต่ำ 2.5 mg)</em>';
         advisoryEl.innerHTML = html;
         advisoryEl.classList.add('visible');
     }
